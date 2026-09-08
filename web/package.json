@@ -1,0 +1,42 @@
+{
+  "name": "chat-assistant-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@livekit/components-react": "^2.9.24",
+    "@livekit/components-styles": "^1.1.6",
+    "@livekit/protocol": "^1.41.0",
+    "bcryptjs": "^3.0.3",
+    "framer-motion": "^11.11.17",
+    "livekit-client": "^2.22.0",
+    "livekit-server-sdk": "^2.18.0",
+    "lucide-react": "^0.460.0",
+    "next": "^15.0.3",
+    "next-auth": "^5.0.0-beta.32",
+    "pg": "^8.23.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "sonner": "^1.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.9.0",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.15.0",
+    "eslint-config-next": "^15.0.3",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.6.3"
+  }
+}

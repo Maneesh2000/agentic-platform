@@ -1,0 +1,64 @@
+# Local dev media plane — the full WebRTC path offline, no cloud account.
+# Dev credentials are livekit's --dev defaults: devkey / secret.
+#
+#   docker compose up -d
+#   cd assistant && uv run assistant-voice dev      # worker joins ws://localhost:7880
+#   cd web && npm run dev                   # browser client on :3000
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    # --node-ip 127.0.0.1: on macOS/Windows, Docker runs in a VM, so the
+    # container's bridge IP (172.x) is unreachable from the host browser.
+    # Without this the SFU advertises 172.x ICE candidates and every peer
+    # connection fails ("could not establish pc connection") even though
+    # signalling over the published 7880 port works fine.
+    command: --dev --bind 0.0.0.0 --node-ip 127.0.0.1
+    ports:
+      - "7880:7880" # signal (ws) + RoomService
+      - "7881:7881" # ICE/TCP fallback
+      - "7882:7882/udp" # media (dev mode uses UDP mux on 7882)
+
+  # Single-node dev does not need Redis — kept for parity with production
+  # (multi-node room routing) and future multi-worker experiments.
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  # Postgres + pgvector: chat history, uploads, audit and the vector index.
+  # Data survives restarts in the named volume.
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg18
+    environment:
+      POSTGRES_USER: voice
+      POSTGRES_PASSWORD: voice # local dev only
+      POSTGRES_DB: voiceagent
+    ports:
+      - "5432:5432"
+    volumes:
+      # pg18+ convention: mount the PARENT dir; data lives in a versioned
+      # subdirectory inside it (enables pg_upgrade --link across majors).
+      - pg-data:/var/lib/postgresql
+
+  # Text surface: the same LangGraph brain over HTTP, stateless (the web app
+  # owns conversation history). Separate process from the LiveKit worker
+  # because cli.run_app() blocks and the SDK owns 8081/9091.
+  chat:
+    build: ./assistant
+    command: ["uv", "run", "--no-sync", "assistant-chat"]
+    ports:
+      - "8124:8124" # 8080 is commonly occupied; web reaches it via CHAT_SERVICE_URL
+    environment:
+      # Uploads + retrieval live here; the worker still boots with it down.
+      DATABASE_URL: postgresql://voice:voice@postgres:5432/voiceagent
+      LLM_MODEL: ${LLM_MODEL:-google:gemini-3.6-flash}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-} # optional: enables the Research Agent
+      HTTP_CORS_ORIGINS: http://localhost:3000
+    depends_on:
+      - postgres
+
+volumes:
+  pg-data:

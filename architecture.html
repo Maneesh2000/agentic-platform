@@ -1,0 +1,1377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Architecture flow diagrams for the self-hosted LiveKit voice agent and the agent platform, system level down to subsystem internals.">
+<title>Self-Hosted Chat Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --ground:    #F5F7FA;
+    --surface:   #FFFFFF;
+    --surface-2: #ECEFF4;
+    --ink:       #171C24;
+    --ink-mid:   #444E5C;
+    --ink-mute:  #6B7686;
+    --line:      #DBE1E9;
+    --line-firm: #C2CBD6;
+    --signal:    #A86A12;
+    --signal-bg: #FBF1DF;
+    --media:     #0B7B7B;
+    --media-bg:  #DEF0EF;
+    --warn:      #A63B36;
+    --warn-bg:   #FAE7E5;
+    --shadow:    0 1px 2px rgba(23,28,36,.06), 0 8px 24px -12px rgba(23,28,36,.18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:    #0E1116;
+      --surface:   #161A21;
+      --surface-2: #1D222B;
+      --ink:       #E5E9EF;
+      --ink-mid:   #AEB8C6;
+      --ink-mute:  #8794A4;
+      --line:      #262C36;
+      --line-firm: #38414E;
+      --signal:    #E9A33D;
+      --signal-bg: #2A2113;
+      --media:     #35BDB4;
+      --media-bg:  #102A2A;
+      --warn:      #E5817A;
+      --warn-bg:   #2E1917;
+      --shadow:    0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:    #0E1116;
+    --surface:   #161A21;
+    --surface-2: #1D222B;
+    --ink:       #E5E9EF;
+    --ink-mid:   #AEB8C6;
+    --ink-mute:  #8794A4;
+    --line:      #262C36;
+    --line-firm: #38414E;
+    --signal:    #E9A33D;
+    --signal-bg: #2A2113;
+    --media:     #35BDB4;
+    --media-bg:  #102A2A;
+    --warn:      #E5817A;
+    --warn-bg:   #2E1917;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Chivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+    padding: 0 24px 120px;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  .prose { max-width: 68ch; }
+
+  /* ---------- masthead ---------- */
+
+  header.masthead {
+    padding: 76px 0 44px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 56px;
+  }
+
+  .eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--signal);
+    margin: 0 0 20px;
+  }
+
+  h1 {
+    font-size: clamp(2.6rem, 6.2vw, 4.1rem);
+    font-weight: 900;
+    letter-spacing: -.035em;
+    line-height: 1.02;
+    text-wrap: balance;
+    margin: 0 0 22px;
+  }
+
+  .standfirst {
+    font-size: 1.2rem;
+    line-height: 1.55;
+    color: var(--ink-mid);
+    max-width: 60ch;
+    margin: 0 0 34px;
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .fact {
+    flex: 1 1 168px;
+    padding: 15px 18px;
+    border-right: 1px solid var(--line);
+  }
+  .fact:last-child { border-right: 0; }
+  .fact dt {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 5px;
+  }
+  .fact dd {
+    margin: 0;
+    font-size: .95rem;
+    font-weight: 600;
+    letter-spacing: -.012em;
+  }
+
+  /* ---------- sections ---------- */
+
+  section { margin: 0 0 68px; }
+
+  .rule {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    border-top: 1px solid var(--line-firm);
+    padding-top: 14px;
+    margin-bottom: 30px;
+  }
+  .rule .num {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    color: var(--signal);
+    flex: none;
+  }
+  h2 {
+    font-size: 1.62rem;
+    font-weight: 700;
+    letter-spacing: -.028em;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h3 {
+    font-size: 1.06rem;
+    font-weight: 700;
+    letter-spacing: -.016em;
+    margin: 34px 0 10px;
+  }
+
+  p { margin: 0 0 17px; }
+  .prose > p:last-child { margin-bottom: 0; }
+
+  a { color: var(--signal); text-underline-offset: 3px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .855em;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: .1em .38em;
+    white-space: nowrap;
+  }
+
+  strong { font-weight: 700; }
+
+  /* ---------- figures ---------- */
+
+  figure {
+    margin: 34px 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 26px 26px 20px;
+    box-shadow: var(--shadow);
+  }
+  .figscroll { overflow-x: auto; }
+  svg.diagram {
+    display: block;
+    width: 100%;
+    min-width: 660px;
+    max-width: 100%;
+    height: auto;
+    color: var(--ink-mid);
+  }
+  svg.diagram text {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    fill: currentColor;
+  }
+  svg.diagram .lbl {
+    font-family: "Chivo", sans-serif;
+    font-size: 13.5px;
+    font-weight: 700;
+    fill: var(--ink);
+    letter-spacing: -.01em;
+  }
+  svg.diagram .sub { font-size: 10.5px; fill: var(--ink-mute); }
+  svg.diagram .edge { font-size: 10.5px; }
+  svg.diagram .zone {
+    font-size: 10px;
+    letter-spacing: .09em;
+    fill: var(--ink-mute);
+  }
+
+  figcaption {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: .875rem;
+    line-height: 1.5;
+    color: var(--ink-mid);
+    max-width: 74ch;
+  }
+  figcaption b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- tables ---------- */
+
+  .tablewrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--surface);
+    margin: 26px 0;
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 580px; }
+  th, td {
+    text-align: left;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line);
+    font-size: .885rem;
+    vertical-align: baseline;
+  }
+  th {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    font-weight: 500;
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.port {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .pill {
+    display: inline-block;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 2.5px 7px;
+    border-radius: 2px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .pill.pub  { background: var(--warn-bg);   color: var(--warn); }
+  .pill.lb   { background: var(--signal-bg); color: var(--signal); }
+  .pill.priv { background: var(--surface-2); color: var(--ink-mute); }
+
+  /* ---------- gotchas ---------- */
+
+  .gotcha {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--warn);
+    border-radius: 3px;
+    padding: 17px 20px;
+    margin: 0 0 14px;
+  }
+  .gotcha .tag {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--warn);
+    display: block;
+    margin-bottom: 7px;
+  }
+  .gotcha p { margin: 0; font-size: .93rem; line-height: 1.55; }
+  .gotcha p + p { margin-top: 9px; }
+
+  /* ---------- phases ---------- */
+
+  ol.phases { list-style: none; margin: 0; padding: 0; counter-reset: ph; }
+  ol.phases > li {
+    counter-increment: ph;
+    display: grid;
+    grid-template-columns: 46px 1fr;
+    gap: 20px;
+    padding: 20px 0;
+    border-top: 1px solid var(--line);
+  }
+  ol.phases > li::before {
+    content: counter(ph, decimal-leading-zero);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--signal);
+    padding-top: 3px;
+  }
+  ol.phases h3 { margin: 0 0 5px; font-size: 1rem; }
+  ol.phases p { margin: 0; font-size: .92rem; color: var(--ink-mid); }
+  ol.phases .paths {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--ink-mute);
+    margin-top: 8px;
+  }
+
+  ul.checks { margin: 0; padding-left: 20px; }
+  ul.checks li { margin-bottom: 9px; font-size: .93rem; }
+  ul.checks li::marker { color: var(--signal); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 16px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    color: var(--ink-mute);
+    letter-spacing: .04em;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch { width: 22px; height: 0; border-top-width: 2px; display: inline-block; }
+  .swatch.solid  { border-top-style: solid;  border-top-color: var(--media); }
+  .swatch.dashed { border-top-style: dashed; border-top-color: currentColor; }
+  .swatch.amber  { border-top-style: solid;  border-top-color: var(--signal); }
+
+  footer.end {
+    border-top: 1px solid var(--line-firm);
+    padding-top: 22px;
+    font-size: .85rem;
+    color: var(--ink-mute);
+    max-width: 68ch;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  @media (max-width: 640px) {
+    body { padding: 0 16px 80px; font-size: 16px; }
+    header.masthead { padding: 48px 0 34px; }
+    .fact { flex-basis: 50%; border-bottom: 1px solid var(--line); }
+    figure { padding: 16px 14px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Architecture · agentic-platform</p>
+  <h1>Self-Hosted Chat&nbsp;Assistant</h1>
+  <p class="standfirst">The system in twelve diagrams — from the media plane and the conversation loop down to the research loop, the supervisor graph, the identity checkpoints, and the tool gateway.</p>
+</header>
+
+<!-- ============ 01. SYSTEM ============ -->
+<section>
+  <div class="rule"><span class="num">01</span><h2>The system, end to end</h2></div>
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1120 640" role="img" aria-label="Browser connects to a self-hosted LiveKit SFU over WSS for signaling and UDP for Opus media. The SFU sits in a dedicated host-networked node pool. Agent worker pods in a separate node pool exchange WebRTC media with the SFU in-cluster and register with it over WebSocket. The SFU keeps room state in Redis, and agent workers call out to Deepgram and the configured LLM provider.">
+        <defs>
+          <marker id="a-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="a-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--media)"/>
+          </marker>
+        </defs>
+
+        <!-- cluster boundary -->
+        <rect x="320" y="40" width="620" height="560" rx="5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>
+        <text x="340" y="66" class="zone">KUBERNETES</text>
+
+        <!-- ===== node pool A : SFU ===== -->
+        <rect x="348" y="84" width="344" height="224" rx="4" fill="var(--surface-2)" stroke="var(--line-firm)" stroke-width="1"/>
+        <text x="370" y="110" class="zone">NODE POOL · SFU</text>
+        <text x="370" y="128" class="sub">hostNetwork · 1 pod per node</text>
+
+        <rect x="370" y="146" width="300" height="142" rx="3" fill="var(--surface)" stroke="var(--media)" stroke-width="1.5"/>
+        <text x="392" y="177" class="lbl">LiveKit SFU</text>
+        <text x="392" y="203" class="sub">7880 signal · 7882–7892 media</text>
+        <text x="392" y="223" class="sub">7881 ICE/TCP · TURN 443</text>
+        <text x="392" y="252" class="sub" fill="var(--signal)">advertise_internal_ip: true</text>
+
+        <!-- ===== node pool B : agents ===== -->
+        <rect x="348" y="372" width="344" height="208" rx="4" fill="var(--surface-2)" stroke="var(--line-firm)" stroke-width="1"/>
+        <text x="370" y="398" class="zone">NODE POOL · AGENTS</text>
+        <text x="370" y="416" class="sub">no inbound ports · HPA 2→N</text>
+
+        <rect x="382" y="446" width="296" height="112" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1"/>
+        <rect x="376" y="440" width="296" height="112" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1"/>
+        <rect x="370" y="434" width="296" height="112" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="392" y="465" class="lbl">Agent worker</text>
+        <text x="392" y="491" class="sub">STT → LLM → TTS pipeline</text>
+        <text x="392" y="511" class="sub">:8081 health · :9091 metrics</text>
+        <text x="392" y="535" class="sub">4 CPU / 8 Gi → 10–25 calls</text>
+
+        <!-- ===== redis ===== -->
+        <rect x="776" y="160" width="142" height="96" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1"/>
+        <text x="796" y="191" class="lbl">Redis</text>
+        <text x="796" y="216" class="sub">room state</text>
+        <text x="796" y="236" class="sub">multi-node routing</text>
+
+        <!-- ===== browser ===== -->
+        <rect x="24" y="146" width="176" height="142" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="46" y="177" class="lbl">Browser</text>
+        <text x="46" y="203" class="sub">Next.js client</text>
+        <text x="46" y="223" class="sub">mic + speaker</text>
+        <text x="46" y="252" class="sub">AEC / NS / AGC on</text>
+
+        <!-- ===== providers ===== -->
+        <rect x="950" y="430" width="156" height="126" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1"/>
+        <text x="970" y="461" class="lbl">Providers</text>
+        <text x="970" y="485" class="sub">Deepgram</text>
+        <text x="970" y="503" class="sub">Gemini / DeepSeek</text>
+        <text x="970" y="521" class="sub">STT · LLM · TTS</text>
+        <text x="970" y="545" class="sub">BYO keys</text>
+
+        <!-- browser -> SFU : signal (horizontal, label above) -->
+        <path d="M 200 178 L 370 178" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#a-n)"/>
+        <text x="206" y="168" class="edge">WSS 7880 · signal</text>
+
+        <!-- browser <-> SFU : media (horizontal, label below) -->
+        <path d="M 200 256 L 370 256" fill="none" stroke="var(--media)" stroke-width="2" marker-end="url(#a-m)" marker-start="url(#a-m)"/>
+        <text x="206" y="276" class="edge" fill="var(--media)">UDP · Opus media</text>
+
+        <!-- SFU <-> agent : media (vertical, label left) -->
+        <path d="M 560 288 L 560 434" fill="none" stroke="var(--media)" stroke-width="2" marker-end="url(#a-m)" marker-start="url(#a-m)"/>
+        <text x="548" y="349" class="edge" fill="var(--media)" text-anchor="end">WebRTC</text>
+        <text x="548" y="365" class="edge" fill="var(--media)" text-anchor="end">in-cluster</text>
+
+        <!-- agent -> SFU : control (vertical, label right) -->
+        <path d="M 620 434 L 620 288" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#a-n)"/>
+        <text x="632" y="349" class="edge">register</text>
+        <text x="632" y="365" class="edge">+ job dispatch</text>
+
+        <!-- SFU -> redis -->
+        <path d="M 670 208 L 776 208" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#a-n)"/>
+        <text x="684" y="198" class="edge">room state</text>
+
+        <!-- agent -> providers (crosses the cluster boundary) -->
+        <path d="M 666 490 L 950 490" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#a-n)"/>
+        <text x="700" y="480" class="edge">STT · LLM · TTS over HTTPS</text>
+      </svg>
+    </div>
+    <div class="legend">
+      <span><i class="swatch solid"></i> media — Opus over WebRTC</span>
+      <span><i class="swatch dashed"></i> control — signaling &amp; dispatch</span>
+    </div>
+    <figcaption><b>Figure 1.</b> The agent joins the room as a participant, not a service behind it — every connection it makes is outbound, so the worker needs no inbound ports.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 02. ICE ============ -->
+<section>
+  <div class="rule"><span class="num">02</span><h2>One flag decides whether this works</h2></div>
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1000 336" role="img" aria-label="Comparison of ICE candidate behaviour. Without advertise_internal_ip, the SFU replaces its internal candidate with the mapped external IP, so an in-cluster agent pod must hairpin out to the node public IP and back. With advertise_internal_ip set to true, the internal candidate is kept alongside the external one, so the agent connects directly while the browser still uses the external candidate.">
+        <defs>
+          <marker id="b-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--warn)"/>
+          </marker>
+          <marker id="b-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--media)"/>
+          </marker>
+          <marker id="b-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <!-- panel A: default -->
+        <rect x="8" y="20" width="472" height="306" rx="4" fill="none" stroke="var(--line-firm)" stroke-width="1"/>
+        <text x="28" y="48" class="zone">DEFAULT — EXTERNAL CANDIDATE ONLY</text>
+        <text x="28" y="68" class="sub">advertise_internal_ip unset</text>
+
+        <rect x="28" y="96" width="126" height="56" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="44" y="118" class="lbl">Agent pod</text>
+        <text x="44" y="138" class="sub">10.4.x.x</text>
+
+        <rect x="321" y="96" width="130" height="56" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="337" y="118" class="lbl">SFU</text>
+        <text x="337" y="138" class="sub">node 10.4.y.y</text>
+
+        <path d="M 154 124 L 321 124" fill="none" stroke="var(--warn)" stroke-width="1.4" stroke-dasharray="5 4"/>
+        <path d="M 224 113 L 246 135 M 246 113 L 224 135" stroke="var(--warn)" stroke-width="2" fill="none"/>
+        <text x="120" y="184" class="edge">no direct route offered</text>
+
+        <rect x="158" y="228" width="152" height="60" rx="3" fill="var(--warn-bg)" stroke="var(--warn)" stroke-width="1.3" stroke-dasharray="4 3"/>
+        <text x="176" y="252" class="lbl">Node public IP</text>
+        <text x="176" y="272" class="sub">hairpin NAT</text>
+
+        <path d="M 85 152 L 85 258 L 158 258" fill="none" stroke="var(--warn)" stroke-width="1.6" marker-end="url(#b-w)"/>
+        <path d="M 310 258 L 385 258 L 385 152" fill="none" stroke="var(--warn)" stroke-width="1.6" marker-end="url(#b-w)"/>
+
+        <text x="28" y="312" class="sub">Depends on hairpin support — often silently fails.</text>
+
+        <!-- panel B: advertise_internal_ip -->
+        <rect x="520" y="20" width="472" height="306" rx="4" fill="none" stroke="var(--media)" stroke-width="1.5"/>
+        <text x="541" y="48" class="zone">BOTH CANDIDATES ADVERTISED</text>
+        <text x="541" y="68" class="sub">advertise_internal_ip: true</text>
+
+        <rect x="541" y="96" width="126" height="56" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="557" y="118" class="lbl">Agent pod</text>
+        <text x="557" y="138" class="sub">10.4.x.x</text>
+
+        <rect x="841" y="96" width="130" height="56" rx="3" fill="var(--surface)" stroke="var(--media)" stroke-width="1.5"/>
+        <text x="857" y="118" class="lbl">SFU</text>
+        <text x="857" y="138" class="sub">node 10.4.y.y</text>
+
+        <path d="M 667 124 L 841 124" fill="none" stroke="var(--media)" stroke-width="2" marker-end="url(#b-m)"/>
+        <text x="676" y="108" class="edge" fill="var(--media)">internal candidate</text>
+
+        <rect x="680" y="228" width="148" height="60" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="696" y="252" class="lbl">Browser</text>
+        <text x="696" y="272" class="sub">public internet</text>
+
+        <path d="M 820 252 L 895 252 L 895 150" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#b-n)"/>
+        <text x="830" y="274" class="edge">external candidate</text>
+
+        <text x="540" y="306" class="sub">Each client selects the candidate that actually reaches it.</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 2.</b> <code>advertise_internal_ip: true</code> keeps the internal ICE candidate alongside the external one — the in-cluster agent takes the direct path while the browser still gets a routable address.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 03. TURN PIPELINE ============ -->
+<section>
+  <div class="rule"><span class="num">03</span><h2>What happens in one turn</h2></div>
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1000 312" role="img" aria-label="A single conversational turn: microphone audio flows through speech to text, then a turn detector decides if the user has finished, then the language model, then text to speech, and back to the speaker. Preemptive generation starts the language model before end of turn is confirmed. An interrupt path lets new speech cancel playback.">
+        <defs>
+          <marker id="c-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="c-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--signal)"/>
+          </marker>
+          <marker id="c-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--warn)"/>
+          </marker>
+        </defs>
+
+        <text x="24" y="40" class="zone">INBOUND</text>
+
+        <rect x="24" y="108" width="118" height="66" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="40" y="134" class="lbl">Mic</text>
+        <text x="40" y="154" class="sub">Opus in</text>
+
+        <rect x="188" y="108" width="130" height="66" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="204" y="134" class="lbl">STT</text>
+        <text x="204" y="154" class="sub">Deepgram nova-3</text>
+
+        <rect x="364" y="108" width="146" height="66" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="380" y="134" class="lbl">Turn detector</text>
+        <text x="380" y="154" class="sub">semantic + acoustic</text>
+
+        <rect x="556" y="108" width="130" height="66" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="572" y="134" class="lbl">LLM</text>
+        <text x="572" y="154" class="sub">gpt-4.1-mini</text>
+
+        <rect x="732" y="108" width="130" height="66" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="748" y="134" class="lbl">TTS</text>
+        <text x="748" y="154" class="sub">Deepgram aura-2</text>
+
+        <rect x="908" y="108" width="86" height="66" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="924" y="134" class="lbl">Out</text>
+        <text x="924" y="154" class="sub">speaker</text>
+
+        <path d="M 142 141 L 188 141" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#c-n)"/>
+        <path d="M 318 141 L 364 141" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#c-n)"/>
+        <path d="M 510 141 L 556 141" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#c-n)"/>
+        <path d="M 686 141 L 732 141" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#c-n)"/>
+        <path d="M 862 141 L 908 141" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#c-n)"/>
+
+        <!-- preemptive generation -->
+        <path d="M 300 108 C 340 48, 540 48, 600 104" fill="none" stroke="var(--signal)" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#c-s)"/>
+        <text x="386" y="40" class="edge" fill="var(--signal)">preemptive generation — starts before end-of-turn</text>
+
+        <!-- interruption -->
+        <path d="M 790 174 C 730 250, 300 250, 240 176" fill="none" stroke="var(--warn)" stroke-width="1.8" marker-end="url(#c-w)"/>
+        <text x="432" y="270" class="edge" fill="var(--warn)">adaptive interruption — cancels playback on real speech</text>
+
+        <text x="24" y="298" class="sub">Backchannels like “mhm” and “right” do not trigger the interrupt path.</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 3.</b> Preemptive generation starts the LLM during the pause; the turn detector separates real interruptions from agreement noise.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 04. SCALING ============ -->
+<section>
+  <div class="rule"><span class="num">04</span><h2>Scaling before the cliff</h2></div>
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 960 268" role="img" aria-label="A load gauge from zero to one hundred percent. From zero to fifty percent the worker has headroom. At fifty percent the horizontal pod autoscaler adds a pod. Between fifty and seventy percent the worker is still accepting jobs while the new pod warms up. At seventy percent the worker stops accepting new jobs but existing calls continue.">
+        <defs>
+          <marker id="d-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--signal)"/>
+          </marker>
+          <marker id="d-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--warn)"/>
+          </marker>
+        </defs>
+
+        <text x="24" y="38" class="zone">WORKER CPU LOAD</text>
+
+        <!-- track -->
+        <rect x="24" y="96" width="450" height="46" fill="var(--media-bg)" stroke="var(--line-firm)" stroke-width="1"/>
+        <rect x="474" y="96" width="180" height="46" fill="var(--signal-bg)" stroke="var(--line-firm)" stroke-width="1"/>
+        <rect x="654" y="96" width="282" height="46" fill="var(--warn-bg)" stroke="var(--line-firm)" stroke-width="1"/>
+
+        <!-- zone labels -->
+        <text x="40" y="124" class="edge" fill="var(--media)">headroom · accepting</text>
+        <text x="490" y="124" class="edge" fill="var(--signal)">scaling up · still accepting</text>
+        <text x="670" y="124" class="edge" fill="var(--warn)">not accepting new jobs · live calls continue</text>
+
+        <!-- scale ticks -->
+        <line x1="24" y1="142" x2="24" y2="158" stroke="currentColor" stroke-width="1"/>
+        <text x="24" y="176" class="sub" text-anchor="middle">0%</text>
+        <line x1="474" y1="142" x2="474" y2="158" stroke="var(--signal)" stroke-width="2"/>
+        <text x="474" y="176" class="sub" text-anchor="middle">50%</text>
+        <line x1="654" y1="142" x2="654" y2="158" stroke="var(--warn)" stroke-width="2"/>
+        <text x="654" y="176" class="sub" text-anchor="middle">70%</text>
+        <line x1="936" y1="142" x2="936" y2="158" stroke="currentColor" stroke-width="1"/>
+        <text x="936" y="176" class="sub" text-anchor="middle">100%</text>
+
+        <!-- callouts -->
+        <path d="M 474 96 L 474 68" fill="none" stroke="var(--signal)" stroke-width="1.5" marker-end="url(#d-s)"/>
+        <text x="486" y="64" class="edge" fill="var(--signal)">HPA adds a pod here</text>
+
+        <path d="M 654 96 L 654 68" fill="none" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#d-w)"/>
+        <text x="666" y="64" class="edge" fill="var(--warn)">load_threshold</text>
+
+        <!-- runway bracket -->
+        <path d="M 474 196 L 474 208 L 654 208 L 654 196" fill="none" stroke="var(--ink-mute)" stroke-width="1"/>
+        <text x="564" y="228" class="edge" text-anchor="middle">runway: image pull + model load + register</text>
+
+        <text x="24" y="256" class="sub">Scale-down uses a 900s stabilization window — draining a worker is slow by design.</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 4.</b> The HPA fires at 50%, twenty points before workers stop accepting at <code>load_threshold: 0.7</code> — the band is a new pod's warm-up runway.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 05. LANGGRAPH BRAIN ============ -->
+<section>
+  <div class="rule"><span class="num">05</span><h2>The LangGraph brain</h2></div>
+
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1060 430" role="img" aria-label="The voice worker's brain: the speech-to-text transcript enters an LLM adapter holding a compiled LangGraph. A router node sends ordinary turns to a fast chat node whose tokens stream straight to text-to-speech; research turns fan out to deferred specialist subgraphs while filler speech is emitted immediately through the stream writer. A USE_LANGGRAPH=false switch bypasses the graph entirely for a direct plugin LLM.">
+        <defs>
+          <marker id="e-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="e-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--signal)"/>
+          </marker>
+        </defs>
+
+        <text x="24" y="38" class="zone">VOICE WORKER — ONE PROCESS, ONE VOICE</text>
+
+        <!-- inbound -->
+        <rect x="24" y="170" width="150" height="64" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="40" y="196" class="lbl">User turn</text>
+        <text x="40" y="216" class="sub">STT transcript</text>
+
+        <rect x="214" y="170" width="170" height="64" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="230" y="196" class="lbl">LLMAdapter</text>
+        <text x="230" y="216" class="sub">compiled graph only</text>
+
+        <!-- graph region -->
+        <rect x="404" y="64" width="430" height="272" rx="5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>
+        <text x="424" y="92" class="zone">LANGGRAPH BRAIN</text>
+
+        <rect x="418" y="170" width="150" height="64" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="434" y="196" class="lbl">router</text>
+        <text x="434" y="216" class="sub">conditional edge</text>
+
+        <rect x="628" y="104" width="180" height="60" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="644" y="130" class="lbl">chat</text>
+        <text x="644" y="150" class="sub">one fast LLM call</text>
+
+        <rect x="628" y="240" width="180" height="76" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-dasharray="4 3"/>
+        <text x="644" y="266" class="lbl">specialists</text>
+        <text x="644" y="286" class="sub">Send() fan-out</text>
+        <text x="644" y="302" class="sub">web search · docs</text>
+
+        <!-- outbound -->
+        <rect x="880" y="150" width="156" height="170" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="896" y="180" class="lbl">TTS</text>
+        <text x="896" y="200" class="sub">speaker</text>
+
+        <!-- direct path lane -->
+        <rect x="480" y="360" width="190" height="56" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-dasharray="4 3"/>
+        <text x="496" y="384" class="lbl">plugin LLM</text>
+        <text x="496" y="402" class="sub">google · deepseek · openai</text>
+
+        <!-- edges -->
+        <path d="M 174 202 L 214 202" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#e-n)"/>
+        <path d="M 384 202 L 418 202" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#e-n)"/>
+
+        <path d="M 568 186 L 598 186 L 598 134 L 628 134" fill="none" stroke="var(--signal)" stroke-width="1.8" marker-end="url(#e-s)"/>
+        <text x="592" y="177" class="edge" fill="var(--signal)" text-anchor="end">default</text>
+
+        <path d="M 568 218 L 598 218 L 598 274 L 628 274" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#e-n)"/>
+        <text x="556" y="244" class="edge">on demand</text>
+
+        <path d="M 808 134 L 844 134 L 844 190 L 880 190" fill="none" stroke="var(--signal)" stroke-width="1.8" marker-end="url(#e-s)"/>
+        <path d="M 808 274 L 844 274 L 844 240 L 880 240" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#e-n)"/>
+
+        <!-- filler speech -->
+        <path d="M 718 316 L 718 340 L 900 340 L 900 320" fill="none" stroke="var(--signal)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#e-s)"/>
+        <text x="726" y="358" class="edge" fill="var(--signal)">filler speech — get_stream_writer()</text>
+
+        <!-- bisect switch -->
+        <path d="M 99 234 L 99 388 L 480 388" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#e-n)"/>
+        <path d="M 670 388 L 985 388 L 985 320" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#e-n)"/>
+        <text x="120" y="380" class="edge">USE_LANGGRAPH=false — the bisect switch</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 5.</b> The fast path is sacred: an ordinary turn is one LLM call through <code>chat</code>. Specialists are deferred subgraphs behind the router, and filler speech via <code>get_stream_writer()</code> covers their latency.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 06. RESEARCH ============ -->
+<section>
+  <div class="rule"><span class="num">06</span><h2>Inside the Research Agent</h2></div>
+
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1120 500" role="img" aria-label="Inside the research specialist: on entry it emits filler speech through the stream writer, then runs a bounded ReAct loop where a non-streaming model cycles with three tools — web search, open webpage, and search official — capped at eight iterations. A disable_streaming boundary keeps the loop's internal tokens away from text to speech; only the outer synthesis, which reads the findings returned as a tool message, is spoken.">
+        <defs>
+          <marker id="i-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="i-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--signal)"/>
+          </marker>
+          <marker id="i-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--warn)"/>
+          </marker>
+        </defs>
+
+        <text x="24" y="36" class="zone">RESEARCH NODE</text>
+
+        <!-- entry -->
+        <rect x="24" y="150" width="150" height="70" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="42" y="180" class="lbl">research(query)</text>
+        <text x="42" y="202" class="sub">tool call from chat</text>
+
+        <!-- filler -->
+        <rect x="24" y="290" width="150" height="70" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="42" y="320" class="lbl">filler speech</text>
+        <text x="42" y="342" class="sub">get_stream_writer()</text>
+
+        <!-- loop region -->
+        <rect x="250" y="70" width="500" height="200" rx="5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>
+        <text x="272" y="98" class="zone">REACT LOOP · recursion_limit 8</text>
+
+        <rect x="276" y="150" width="170" height="86" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="296" y="180" class="lbl">model</text>
+        <text x="296" y="202" class="sub">research.md prompt</text>
+        <text x="296" y="224" class="sub" fill="var(--warn)">disable_streaming</text>
+
+        <rect x="530" y="130" width="190" height="126" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="550" y="160" class="lbl">tools</text>
+        <text x="550" y="184" class="sub">web_search</text>
+        <text x="550" y="206" class="sub">open_webpage</text>
+        <text x="550" y="228" class="sub">search_official</text>
+
+        <text x="24" y="470" class="sub">search → open pages → prefer official → cross-check ≥2 sources → stop when answered, or at the cap</text>
+
+        <!-- synthesis -->
+        <rect x="830" y="150" width="180" height="86" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="850" y="180" class="lbl">synthesis</text>
+        <text x="850" y="202" class="sub">outer unbound llm</text>
+        <text x="850" y="224" class="sub">streams normally</text>
+
+        <rect x="830" y="290" width="180" height="70" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="850" y="320" class="lbl">TTS</text>
+        <text x="850" y="342" class="sub">names, never URLs</text>
+
+        <!-- edges -->
+        <path d="M 174 185 L 276 185" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#i-n)"/>
+        <path d="M 99 220 L 99 290" fill="none" stroke="var(--signal)" stroke-width="1.6" marker-end="url(#i-s)"/>
+        <path d="M 174 325 L 830 325" fill="none" stroke="var(--signal)" stroke-width="1.6" marker-end="url(#i-s)"/>
+        <text x="330" y="312" class="edge" fill="var(--signal)">spoken immediately, while the loop runs</text>
+
+        <!-- loop cycle -->
+        <path d="M 446 172 L 530 172" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#i-n)"/>
+        <text x="452" y="162" class="edge">call</text>
+        <path d="M 530 216 L 446 216" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#i-n)"/>
+        <text x="452" y="234" class="edge">observe</text>
+
+        <!-- findings out -->
+        <path d="M 720 193 L 830 193" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#i-n)"/>
+        <text x="698" y="183" class="edge">ToolMessage</text>
+        <path d="M 920 236 L 920 290" fill="none" stroke="var(--signal)" stroke-width="1.6" marker-end="url(#i-s)"/>
+
+        <!-- the wall -->
+        <path d="M 790 96 L 790 396" fill="none" stroke="var(--warn)" stroke-width="1.6" stroke-dasharray="6 5"/>
+        <text x="782" y="424" class="edge" fill="var(--warn)" text-anchor="end">loop tokens never cross — only findings do</text>
+        <text x="802" y="424" class="edge" fill="var(--warn)">this side is spoken</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 6.</b> The loop's model runs non-streaming, so its internal reasoning never reaches TTS — only the outer synthesis is spoken, and filler speech covers the whole loop's latency.</figcaption>
+  </figure>
+</section>
+<!-- ============ 07. PROVIDERS ============ -->
+<section>
+  <div class="rule"><span class="num">07</span><h2>One env var picks the model</h2></div>
+
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1000 360" role="img" aria-label="Provider selection flow: the LLM_MODEL environment variable in provider colon model form is resolved by three maps in models.py. On the direct path with USE_LANGGRAPH false it constructs a LiveKit plugin LLM; on the default graph path it becomes an init_chat_model prefix. The same per-provider key environment variable gates both paths.">
+        <defs>
+          <marker id="g-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <text x="24" y="38" class="zone">ONE ENV VAR, BOTH PATHS</text>
+
+        <rect x="24" y="130" width="210" height="100" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="40" y="158" class="lbl">LLM_MODEL</text>
+        <text x="40" y="182" class="sub">provider:model</text>
+        <text x="40" y="200" class="sub">google · deepseek · openai</text>
+
+        <rect x="300" y="130" width="180" height="100" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="316" y="158" class="lbl">models.py</text>
+        <text x="316" y="180" class="sub">_DIRECT_LLM</text>
+        <text x="316" y="198" class="sub">_GRAPH_PREFIX</text>
+        <text x="316" y="216" class="sub">_LLM_KEY_ENV</text>
+        <text x="300" y="252" class="sub">unknown provider fails loudly</text>
+
+        <text x="566" y="56" class="edge">USE_LANGGRAPH=false — direct path</text>
+        <rect x="560" y="64" width="300" height="80" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="576" y="92" class="lbl">LiveKit plugin</text>
+        <text x="576" y="114" class="sub">google.LLM · openai.LLM</text>
+        <text x="576" y="132" class="sub">openai.LLM.with_deepseek()</text>
+
+        <rect x="560" y="216" width="300" height="80" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="576" y="244" class="lbl">init_chat_model()</text>
+        <text x="576" y="266" class="sub">google_genai: · deepseek: · openai:</text>
+        <text x="566" y="314" class="edge">USE_LANGGRAPH=true — graph path (default)</text>
+
+        <path d="M 234 180 L 300 180" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#g-n)"/>
+        <path d="M 480 158 L 520 158 L 520 104 L 560 104" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#g-n)"/>
+        <path d="M 480 202 L 520 202 L 520 256 L 560 256" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#g-n)"/>
+
+        <text x="24" y="336" class="sub">Same key gates both paths: GOOGLE_API_KEY · DEEPSEEK_API_KEY · OPENAI_API_KEY — the three maps are extended together.</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 7.</b> <code>LLM_MODEL="provider:model"</code> selects the provider once; three maps in <code>models.py</code> resolve it for both paths, so a provider change never touches a call site.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 08. FULL TRACE ============ -->
+<section>
+  <div class="rule"><span class="num">08</span><h2>Request to response, every block</h2></div>
+
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1160 460" role="img" aria-label="One complete voice round trip in nine numbered steps. The browser fetches a token with agent dispatch from the Next.js token route, joins the LiveKit SFU over WSS, and the SFU dispatches a job to an agent worker. Inbound Opus audio flows through the SFU to the worker's STT, then the turn detector, then the LangGraph brain which calls the provider APIs over HTTPS, then TTS synthesizes the reply, and the Opus reply travels back through the SFU to the browser's speaker.">
+        <defs>
+          <marker id="h-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="h-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--media)"/>
+          </marker>
+        </defs>
+
+        <text x="24" y="38" class="zone">ONE VOICE TURN — THE WHOLE PATH</text>
+
+        <!-- browser -->
+        <rect x="24" y="200" width="140" height="170" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="40" y="230" class="lbl">Browser</text>
+        <text x="40" y="254" class="sub">mic · speaker</text>
+        <text x="40" y="274" class="sub">AEC · NS · AGC</text>
+
+        <!-- token route -->
+        <rect x="250" y="60" width="210" height="88" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="266" y="90" class="lbl">/api/token</text>
+        <text x="266" y="112" class="sub">Node runtime</text>
+        <text x="266" y="130" class="sub">RoomAgentDispatch</text>
+
+        <!-- SFU -->
+        <rect x="280" y="200" width="170" height="200" rx="3" fill="var(--surface)" stroke="var(--media)" stroke-width="1.5"/>
+        <text x="296" y="230" class="lbl">LiveKit SFU</text>
+        <text x="296" y="254" class="sub">WSS 7880 · UDP 7882+</text>
+
+        <!-- worker region -->
+        <rect x="490" y="140" width="430" height="300" rx="5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>
+        <text x="510" y="428" class="zone">AGENT WORKER — NODE POOL B</text>
+
+        <rect x="514" y="236" width="104" height="64" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="530" y="262" class="lbl">STT</text>
+        <text x="530" y="282" class="sub">Deepgram</text>
+
+        <rect x="648" y="236" width="116" height="64" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="664" y="262" class="lbl">Turn</text>
+        <text x="664" y="282" class="sub">end-of-turn?</text>
+
+        <rect x="794" y="236" width="118" height="64" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="810" y="262" class="lbl">Brain</text>
+        <text x="810" y="282" class="sub">router → chat</text>
+
+        <rect x="794" y="356" width="118" height="64" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="810" y="382" class="lbl">TTS</text>
+        <text x="810" y="402" class="sub">Deepgram aura-2</text>
+
+        <!-- providers -->
+        <rect x="960" y="200" width="176" height="170" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="976" y="230" class="lbl">Providers</text>
+        <text x="976" y="254" class="sub">Deepgram — STT · TTS</text>
+        <text x="976" y="274" class="sub">Gemini / DeepSeek — LLM</text>
+        <text x="976" y="294" class="sub">one Deepgram key</text>
+        <text x="976" y="318" class="sub">BYO keys</text>
+
+        <!-- 1: token -->
+        <path d="M 94 200 L 94 104 L 250 104" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#h-n)"/>
+        <text x="110" y="96" class="edge" fill="var(--signal)">1 · fetch token</text>
+
+        <!-- 2: join -->
+        <path d="M 164 224 L 280 224" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#h-n)"/>
+        <text x="172" y="216" class="edge" fill="var(--signal)">2 · join</text>
+
+        <!-- 3: dispatch -->
+        <path d="M 450 224 L 468 224 L 468 170 L 490 170" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#h-n)"/>
+        <text x="478" y="162" class="edge" fill="var(--signal)">3 · dispatch job</text>
+
+        <!-- 4: voice in -->
+        <path d="M 164 268 L 280 268" fill="none" stroke="var(--media)" stroke-width="2" marker-end="url(#h-m)"/>
+        <text x="172" y="260" class="edge" fill="var(--signal)">4 · voice</text>
+        <path d="M 450 268 L 514 268" fill="none" stroke="var(--media)" stroke-width="2" marker-end="url(#h-m)"/>
+
+        <!-- 5,6: pipeline -->
+        <path d="M 618 268 L 648 268" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#h-n)"/>
+        <text x="626" y="260" class="edge" fill="var(--signal)">5</text>
+        <path d="M 764 268 L 794 268" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#h-n)"/>
+        <text x="772" y="260" class="edge" fill="var(--signal)">6</text>
+
+        <!-- 7: provider egress -->
+        <path d="M 912 268 L 960 268" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#h-n)"/>
+        <text x="928" y="260" class="edge" fill="var(--signal)">7</text>
+
+        <!-- 8: synthesize -->
+        <path d="M 853 300 L 853 356" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#h-n)"/>
+        <text x="861" y="332" class="edge" fill="var(--signal)">8</text>
+
+        <!-- 9: reply -->
+        <path d="M 794 388 L 450 388" fill="none" stroke="var(--media)" stroke-width="2" marker-end="url(#h-m)"/>
+        <text x="500" y="380" class="edge" fill="var(--signal)">9 · Opus reply</text>
+        <path d="M 280 336 L 164 336" fill="none" stroke="var(--media)" stroke-width="2" marker-end="url(#h-m)"/>
+      </svg>
+    </div>
+    <figcaption><b>Figure 8.</b> One complete round trip: token and dispatch (1–3), inbound audio (4), the worker pipeline — transcript, end-of-turn, brain with provider egress, synthesis (5–8) — and the reply path home (9).</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 09. PLATFORM TASK ============ -->
+<section>
+  <div class="rule"><span class="num">09</span><h2>A platform task, end to end</h2></div>
+
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1120 470" role="img" aria-label="One task through the agent platform: POST /tasks passes bearer authentication yielding a UserContext, then enters the supervisor graph where a route node proposes a plan, the validator compiles it against the registry and policy, and an execute node runs the specialist. An agent_id pin or direct routing mode skips the route node but still passes through the validator. All tool calls go through the ToolGateway which applies policy, audit, and retry rules before invoking document and retrieval tools; retrieval enforces ACLs in the SQL WHERE clause. Results land in the tasks table and stream out over SSE.">
+        <defs>
+          <marker id="f-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="f-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--signal)"/>
+          </marker>
+        </defs>
+
+        <text x="24" y="38" class="zone">AGENT PLATFORM — ONE TASK, POLICY-GATED</text>
+
+        <rect x="24" y="170" width="150" height="64" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="40" y="196" class="lbl">POST /tasks</text>
+        <text x="40" y="216" class="sub">Idempotency-Key</text>
+
+        <rect x="214" y="170" width="140" height="64" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="230" y="196" class="lbl">auth</text>
+        <text x="230" y="216" class="sub">UserContext</text>
+
+        <!-- supervisor region -->
+        <rect x="394" y="84" width="470" height="220" rx="5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>
+        <text x="414" y="288" class="zone">SUPERVISOR GRAPH — BUDGETS AT EVERY HOP</text>
+
+        <rect x="418" y="170" width="120" height="64" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="434" y="196" class="lbl">route</text>
+        <text x="434" y="216" class="sub">rules · planner</text>
+
+        <rect x="578" y="170" width="130" height="64" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="594" y="196" class="lbl">validator</text>
+        <text x="594" y="216" class="sub">policy · registry</text>
+
+        <rect x="748" y="170" width="96" height="64" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="762" y="196" class="lbl">execute</text>
+        <text x="762" y="216" class="sub">specialist</text>
+
+        <rect x="904" y="150" width="180" height="104" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="920" y="180" class="lbl">ToolGateway</text>
+        <text x="920" y="202" class="sub">policy → audit → retry</text>
+        <text x="920" y="222" class="sub">writes need idem keys</text>
+
+        <rect x="904" y="310" width="200" height="88" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="920" y="340" class="lbl">tools</text>
+        <text x="920" y="362" class="sub">document.read / parse</text>
+        <text x="920" y="380" class="sub">retrieval — ACL in WHERE</text>
+
+        <rect x="548" y="350" width="230" height="76" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="564" y="378" class="lbl">tasks table</text>
+        <text x="564" y="398" class="sub">status · result · SSE events</text>
+
+        <!-- pipeline -->
+        <path d="M 174 202 L 214 202" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#f-n)"/>
+        <path d="M 354 202 L 418 202" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#f-n)"/>
+        <path d="M 538 202 L 578 202" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#f-n)"/>
+        <path d="M 708 202 L 748 202" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#f-n)"/>
+        <path d="M 844 202 L 904 202" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#f-n)"/>
+
+        <!-- pin bypass -->
+        <path d="M 284 170 C 330 96, 560 96, 636 170" fill="none" stroke="var(--signal)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#f-s)"/>
+        <text x="370" y="74" class="edge" fill="var(--signal)">agent_id pin — skips routing, never policy</text>
+
+        <!-- gateway to tools -->
+        <path d="M 994 254 L 994 310" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#f-n)"/>
+        <text x="1004" y="286" class="edge">invoke</text>
+
+        <!-- finalize -->
+        <path d="M 796 234 L 796 388 L 778 388" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#f-n)"/>
+        <text x="806" y="330" class="edge">finalize</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 9.</b> The LLM only proposes. Every plan — routed or pinned — compiles through the validator, budgets gate every node boundary, and all tool calls pass through the gateway.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 10. SUPERVISOR ============ -->
+<section>
+  <div class="rule"><span class="num">10</span><h2>Inside the supervisor graph</h2></div>
+
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1120 470" role="img" aria-label="Inside the supervisor graph: a task enters route, whose proposal comes from one of three sources — an agent_id pin, deterministic rules, or the planner LLM. It then passes through validate, execute, and finalize to END. The budget is charged and cancellation is checked at every node boundary, not inside the nodes, so exceeding a limit halts the graph between steps.">
+        <defs>
+          <marker id="j-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="j-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--signal)"/>
+          </marker>
+          <marker id="j-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--warn)"/>
+          </marker>
+        </defs>
+
+        <text x="24" y="36" class="zone">SUPERVISOR GRAPH</text>
+
+        <!-- proposal sources -->
+        <text x="24" y="96" class="zone">PROPOSAL COMES FROM ONE OF THREE</text>
+        <rect x="24" y="118" width="190" height="46" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="42" y="147" class="lbl">agent_id pin</text>
+
+        <rect x="24" y="180" width="190" height="46" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="42" y="209" class="lbl">rules</text>
+
+        <rect x="24" y="242" width="190" height="46" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-dasharray="4 3"/>
+        <text x="42" y="271" class="lbl">planner LLM</text>
+        <text x="24" y="308" class="sub">rules first; the LLM runs only when no rule matches</text>
+
+        <!-- nodes -->
+        <rect x="322" y="160" width="140" height="86" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="342" y="190" class="lbl">route</text>
+        <text x="342" y="214" class="sub">proposes</text>
+        <text x="342" y="234" class="sub">capabilities</text>
+
+        <rect x="530" y="160" width="140" height="86" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="550" y="190" class="lbl">validate</text>
+        <text x="550" y="214" class="sub">compiles a Plan</text>
+        <text x="550" y="234" class="sub">or rejects</text>
+
+        <rect x="738" y="160" width="140" height="86" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="758" y="190" class="lbl">execute</text>
+        <text x="758" y="214" class="sub">specialist runs</text>
+        <text x="758" y="234" class="sub">with a Toolbox</text>
+
+        <rect x="946" y="160" width="140" height="86" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="966" y="190" class="lbl">finalize</text>
+        <text x="966" y="214" class="sub">result to the</text>
+        <text x="966" y="234" class="sub">tasks table</text>
+
+        <!-- flow -->
+        <path d="M 214 141 L 268 141 L 268 186 L 322 186" fill="none" stroke="var(--signal)" stroke-width="1.6" marker-end="url(#j-s)"/>
+        <path d="M 214 203 L 322 203" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#j-n)"/>
+        <path d="M 214 265 L 268 265 L 268 220 L 322 220" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#j-n)"/>
+
+        <path d="M 462 203 L 530 203" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#j-n)"/>
+        <path d="M 670 203 L 738 203" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#j-n)"/>
+        <path d="M 878 203 L 946 203" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#j-n)"/>
+
+        <!-- boundary checks -->
+        <path d="M 496 246 L 496 300" fill="none" stroke="var(--warn)" stroke-width="1.4" marker-start="url(#j-w)"/>
+        <path d="M 704 246 L 704 300" fill="none" stroke="var(--warn)" stroke-width="1.4" marker-start="url(#j-w)"/>
+        <path d="M 912 246 L 912 300" fill="none" stroke="var(--warn)" stroke-width="1.4" marker-start="url(#j-w)"/>
+
+        <rect x="322" y="320" width="764" height="64" rx="3" fill="var(--surface-2)" stroke="var(--warn)" stroke-width="1.5"/>
+        <text x="342" y="348" class="lbl">budget.step() + cancellation — at every boundary</text>
+        <text x="342" y="370" class="sub">max_steps · max_tool_calls · deadline — exceeded halts BETWEEN nodes, never mid-node</text>
+
+        <text x="322" y="424" class="edge" fill="var(--warn)">validate rejects before any expensive work runs</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 10.</b> The planner only ever proposes; <code>validate</code> compiles the proposal into a plan or rejects it, and the budget is charged at each node boundary so limits halt the graph between steps.</figcaption>
+  </figure>
+</section>
+<!-- ============ 11. IDENTITY ============ -->
+<section>
+  <div class="rule"><span class="num">11</span><h2>Identity and the three checkpoints</h2></div>
+
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1120 520" role="img" aria-label="A bearer token is turned into a UserContext once, by current_user, and that same object flows unchanged through the request. Three deterministic checks read it at three different times: can_run_agent at plan time in the validator, is_allowed at call time in the gateway, and role_filter at query time inside the SQL WHERE clause. Under the current open-access stance the plan-time and query-time checks allow everything, and the gateway enforces only the agent's tool allow-list.">
+        <defs>
+          <marker id="k-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="k-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--signal)"/>
+          </marker>
+        </defs>
+
+        <text x="24" y="36" class="zone">IDENTITY IS MINTED ONCE, READ THREE TIMES</text>
+
+        <!-- token -->
+        <rect x="24" y="96" width="168" height="70" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="44" y="126" class="lbl">Bearer token</text>
+        <text x="44" y="148" class="sub">no token → 401</text>
+
+        <!-- current_user -->
+        <rect x="24" y="200" width="168" height="86" rx="3" fill="var(--surface)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="44" y="230" class="lbl">current_user()</text>
+        <text x="44" y="252" class="sub">iam/auth.py</text>
+        <text x="44" y="274" class="sub">the only source</text>
+
+        <!-- context -->
+        <rect x="24" y="320" width="168" height="126" rx="3" fill="var(--surface-2)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="44" y="350" class="lbl">UserContext</text>
+        <text x="44" y="374" class="sub">user_id</text>
+        <text x="44" y="396" class="sub">tenant_id</text>
+        <text x="44" y="418" class="sub">roles · groups</text>
+        <text x="44" y="438" class="sub">permissions</text>
+
+        <path d="M 108 166 L 108 200" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#k-n)"/>
+        <path d="M 108 286 L 108 320" fill="none" stroke="var(--signal)" stroke-width="1.6" marker-end="url(#k-s)"/>
+
+        <!-- checkpoint 1 -->
+        <text x="300" y="96" class="zone">① PLAN TIME</text>
+        <rect x="300" y="118" width="250" height="112" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="320" y="150" class="lbl">can_run_agent</text>
+        <text x="320" y="174" class="sub">validator, before execution</text>
+        <text x="320" y="196" class="sub">may this caller run this agent?</text>
+        <text x="320" y="218" class="sub" fill="var(--signal)">open access — allows</text>
+
+        <!-- checkpoint 2 -->
+        <text x="300" y="272" class="zone">② CALL TIME</text>
+        <rect x="300" y="294" width="250" height="112" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="320" y="326" class="lbl">is_allowed</text>
+        <text x="320" y="350" class="sub">gateway, every tool call</text>
+        <text x="320" y="372" class="sub">is this tool in the allow-list?</text>
+        <text x="320" y="394" class="sub" fill="var(--signal)">enforced — the injection wall</text>
+
+        <!-- checkpoint 3 -->
+        <text x="300" y="448" class="zone">③ QUERY TIME</text>
+        <rect x="300" y="466" width="250" height="40" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="320" y="492" class="lbl">role_filter → SQL WHERE</text>
+
+        <path d="M 192 356 L 246 356 L 246 174 L 300 174" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#k-n)"/>
+        <path d="M 192 372 L 246 372 L 246 350 L 300 350" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#k-n)"/>
+        <path d="M 192 396 L 246 396 L 246 486 L 300 486" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#k-n)"/>
+
+        <!-- what each guards -->
+        <rect x="640" y="118" width="240" height="112" rx="3" fill="var(--surface-2)" stroke="var(--line-firm)"/>
+        <text x="660" y="150" class="lbl">the plan</text>
+        <text x="660" y="174" class="sub">fails fast — before the</text>
+        <text x="660" y="196" class="sub">LLM and embedding work</text>
+
+        <rect x="640" y="294" width="240" height="112" rx="3" fill="var(--surface-2)" stroke="var(--line-firm)"/>
+        <text x="660" y="326" class="lbl">the outside world</text>
+        <text x="660" y="350" class="sub">agents hold no credentials —</text>
+        <text x="660" y="372" class="sub">one chokepoint, all audited</text>
+
+        <rect x="640" y="446" width="240" height="60" rx="3" fill="var(--surface-2)" stroke="var(--line-firm)"/>
+        <text x="660" y="478" class="lbl">the rows</text>
+        <text x="660" y="498" class="sub">filtered in SQL, never after</text>
+
+        <path d="M 550 174 L 640 174" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#k-n)"/>
+        <path d="M 550 350 L 640 350" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#k-n)"/>
+        <path d="M 550 486 L 640 476" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#k-n)"/>
+
+        <text x="940" y="150" class="zone">GUARDS</text>
+        <text x="940" y="196" class="sub">Three different</text>
+        <text x="940" y="218" class="sub">questions, asked at</text>
+        <text x="940" y="240" class="sub">three different times,</text>
+        <text x="940" y="262" class="sub">off one immutable</text>
+        <text x="940" y="284" class="sub">identity object.</text>
+        <text x="940" y="330" class="sub" fill="var(--signal)">The LLM never</text>
+        <text x="940" y="352" class="sub" fill="var(--signal)">participates in any</text>
+        <text x="940" y="374" class="sub" fill="var(--signal)">of them.</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 11.</b> One identity object, three deterministic checks at three different moments — plan, call, and query — none of which the LLM participates in.</figcaption>
+  </figure>
+</section>
+<!-- ============ 12. GATEWAY ============ -->
+<section>
+  <div class="rule"><span class="num">12</span><h2>Inside the ToolGateway</h2></div>
+
+  <figure>
+    <div class="figscroll">
+      <svg class="diagram" viewBox="0 0 1120 560" role="img" aria-label="The gateway's invoke pipeline as a decision ladder: an unknown tool is denied, then the policy check denies anything outside the agent's allow-list, then write tools without an idempotency key are denied while a repeated key replays the recorded response instead of re-issuing the side effect. Reads retry up to max_retries plus one; writes get a single attempt. Every branch — denied, replayed, allowed, failed — emits an audit event carrying a payload hash rather than argument content.">
+        <defs>
+          <marker id="l-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="l-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--warn)"/>
+          </marker>
+          <marker id="l-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--media)"/>
+          </marker>
+        </defs>
+
+        <text x="24" y="36" class="zone">gateway.invoke(ctx, agent, tool, args)</text>
+
+        <!-- ladder -->
+        <rect x="24" y="80" width="230" height="56" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="44" y="114" class="lbl">tool in registry?</text>
+
+        <rect x="24" y="176" width="230" height="56" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="44" y="210" class="lbl">is_allowed?</text>
+
+        <rect x="24" y="272" width="230" height="56" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="44" y="306" class="lbl">write tool?</text>
+
+        <rect x="24" y="368" width="230" height="76" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="44" y="398" class="lbl">run impl</text>
+        <text x="44" y="422" class="sub">under timeout_s</text>
+
+        <!-- vertical spine -->
+        <path d="M 139 136 L 139 176" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#l-n)"/>
+        <path d="M 139 232 L 139 272" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#l-n)"/>
+        <path d="M 139 328 L 139 368" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#l-n)"/>
+        <text x="150" y="160" class="edge">yes</text>
+        <text x="150" y="256" class="edge">yes</text>
+        <text x="130" y="352" class="edge" text-anchor="end">no — read</text>
+
+        <!-- denials -->
+        <rect x="360" y="80" width="210" height="56" rx="3" fill="var(--surface)" stroke="var(--warn)" stroke-width="1.5"/>
+        <text x="380" y="114" class="lbl">unknown tool</text>
+
+        <rect x="360" y="176" width="210" height="56" rx="3" fill="var(--surface)" stroke="var(--warn)" stroke-width="1.5"/>
+        <text x="380" y="210" class="lbl">not in allow-list</text>
+
+        <path d="M 254 108 L 360 108" fill="none" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#l-w)"/>
+        <text x="266" y="98" class="edge" fill="var(--warn)">no</text>
+        <path d="M 254 204 L 360 204" fill="none" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#l-w)"/>
+        <text x="266" y="194" class="edge" fill="var(--warn)">no</text>
+
+        <!-- write branch -->
+        <rect x="360" y="264" width="210" height="72" rx="3" fill="var(--surface)" stroke="var(--line-firm)" stroke-width="1.5"/>
+        <text x="380" y="294" class="lbl">idempotency key?</text>
+        <text x="380" y="318" class="sub">missing → denied</text>
+
+        <rect x="640" y="264" width="210" height="72" rx="3" fill="var(--surface)" stroke="var(--media)" stroke-width="1.5"/>
+        <text x="660" y="294" class="lbl">seen before?</text>
+        <text x="660" y="318" class="sub">replay recorded result</text>
+
+        <path d="M 254 300 L 360 300" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#l-n)"/>
+        <text x="266" y="290" class="edge">yes — write</text>
+        <path d="M 570 300 L 640 300" fill="none" stroke="var(--media)" stroke-width="1.5" marker-end="url(#l-m)"/>
+        <path d="M 745 336 L 745 352 L 180 352 L 180 368" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#l-n)"/>
+        <text x="470" y="342" class="edge">new key — record intent, then call once</text>
+
+        <!-- retry -->
+        <rect x="360" y="368" width="210" height="76" rx="3" fill="var(--surface)" stroke="var(--line-firm)"/>
+        <text x="380" y="398" class="lbl">retry?</text>
+        <text x="380" y="422" class="sub">reads only · writes once</text>
+        <path d="M 254 406 L 360 406" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#l-n)"/>
+        <path d="M 465 444 L 465 470 L 139 470 L 139 444" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#l-n)"/>
+
+        <!-- audit -->
+        <rect x="900" y="80" width="196" height="240" rx="3" fill="var(--surface-2)" stroke="var(--signal)" stroke-width="1.5"/>
+        <text x="920" y="112" class="lbl">audit.emit</text>
+        <text x="920" y="142" class="sub">every branch:</text>
+        <text x="920" y="166" class="sub">denied</text>
+        <text x="920" y="188" class="sub">replayed</text>
+        <text x="920" y="210" class="sub">allowed</text>
+        <text x="920" y="232" class="sub">failed</text>
+        <text x="920" y="266" class="sub" fill="var(--signal)">payload_hash</text>
+        <text x="920" y="288" class="sub" fill="var(--signal)">never content</text>
+
+        <path d="M 570 108 L 900 108" fill="none" stroke="var(--signal)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#l-n)"/>
+        <path d="M 570 204 L 900 190" fill="none" stroke="var(--signal)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#l-n)"/>
+        <path d="M 850 288 L 900 268" fill="none" stroke="var(--signal)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#l-n)"/>
+        <path d="M 570 420 L 730 420 L 900 320" fill="none" stroke="var(--signal)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#l-n)"/>
+
+        <text x="24" y="490" class="sub">Agents hold no credentials and never call an external directly — this is the only door out.</text>
+        <text x="24" y="516" class="sub">Failures return structured errors (ToolTimeout, ToolFailed), so an agent can react without seeing a stack trace.</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 12.</b> The single door between agents and the outside world: policy, then idempotency for writes, then a bounded call — with every branch audited by hash rather than content.</figcaption>
+  </figure>
+</section>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,19 @@
+# ClusterIP for health checks and Prometheus scraping ONLY. Workers take
+# no user traffic — every connection they make is outbound.
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-assistant
+  labels:
+    app: chat-assistant
+spec:
+  type: ClusterIP
+  selector:
+    app: chat-assistant
+  ports:
+    - name: health
+      port: 8081
+      targetPort: health
+    - name: metrics
+      port: 9091
+      targetPort: metrics

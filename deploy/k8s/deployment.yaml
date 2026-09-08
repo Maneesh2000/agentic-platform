@@ -1,0 +1,65 @@
+# Agent workers. Opposite network shape to the SFU: standard pod network,
+# ZERO inbound ports (workers dial out over WebSocket to register), many
+# pods per node, scaled by the HPA.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-assistant
+  labels:
+    app: chat-assistant
+spec:
+  replicas: 2 # floor; hpa.yaml owns the real count
+  selector:
+    matchLabels:
+      app: chat-assistant
+  template:
+    metadata:
+      labels:
+        app: chat-assistant
+    spec:
+      # drain_timeout (600s in agent config) + 60s buffer. SIGTERM stops
+      # job intake; live conversations get the full window to finish.
+      terminationGracePeriodSeconds: 660
+      nodeSelector:
+        livekit.io/pool: agents
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: agent
+          image: ghcr.io/maneesh2000/agentic-platform/chat-assistant:latest # set your registry/tag
+          envFrom:
+            - secretRef:
+                name: chat-assistant-secrets # deploy/k8s/secret.example.yaml
+          ports:
+            - name: health
+              containerPort: 8081
+            - name: metrics
+              containerPort: 9091
+          # 4 CPU / 8Gi ≈ 10-25 concurrent voice sessions (LiveKit's load
+          # test: 30 sessions at ~3.8 cores / ~2.8GB on this size).
+          # NO cpu limit on purpose: CFS throttling causes audible glitches
+          # in a realtime pipeline; the request alone gives the guarantee.
+          resources:
+            requests:
+              cpu: "4"
+              memory: 8Gi
+              ephemeral-storage: 10Gi
+            limits:
+              memory: 8Gi
+          # Liveness only — a DRAINING pod must keep serving its live calls,
+          # so no readiness gate that would mark it unready mid-drain.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            # prometheus_multiproc_dir — sessions run in child processes;
+            # without this mount /metrics silently misses per-session series.
+            - name: prom-multiproc
+              mountPath: /tmp/prom
+      volumes:
+        - name: prom-multiproc
+          emptyDir: {}

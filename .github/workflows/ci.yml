@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  assistant:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: assistant
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg18
+        env:
+          POSTGRES_USER: voice
+          POSTGRES_PASSWORD: voice
+          POSTGRES_DB: voiceagent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U voice -d voiceagent"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --dev
+      - run: uv run ruff check src tests
+      - run: uv run ruff format --check src tests
+      # Everything is keyless except the behavioral evals, which skip unless
+      # the OPENAI_API_KEY secret is set. DB tests use the service above.
+      - name: pytest
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DATABASE_URL: postgresql://voice:voice@localhost:5432/voiceagent
+        run: uv run pytest -v
+
+  assistant-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t chat-assistant:ci assistant
+
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build

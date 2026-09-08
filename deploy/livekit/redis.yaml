@@ -1,0 +1,41 @@
+# Cluster-internal Redis for the SFU's room state (dev/small setups).
+# For production prefer managed Redis (ElastiCache / Memorystore) and set
+# livekit.redis.address in values.yaml accordingly.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: livekit-redis
+  namespace: livekit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: livekit-redis
+  template:
+    metadata:
+      labels:
+        app: livekit-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: livekit-redis
+  namespace: livekit
+spec:
+  selector:
+    app: livekit-redis
+  ports:
+    - port: 6379
+      targetPort: 6379

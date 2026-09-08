@@ -1,0 +1,20 @@
+# The closed set of tools. `write: true` tools never auto-retry and require
+# an idempotency key at the gateway (none ship in v1; jira.* lands with the
+# approval flow in increment 3).
+document.read:
+  description: Read a raw document from the platform documents directory.
+  write: false
+  max_retries: 2
+  timeout_s: 15
+
+document.parse:
+  description: Extract plain text from a raw document (txt, pdf, html).
+  write: false
+  max_retries: 1
+  timeout_s: 60
+
+retrieval.search:
+  description: ACL-filtered semantic search over indexed document chunks.
+  write: false
+  max_retries: 2
+  timeout_s: 15

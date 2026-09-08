@@ -1,0 +1,10 @@
+# Node drains must not evict every worker mid-call.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: chat-assistant
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: chat-assistant

@@ -1,0 +1,86 @@
+# Production values for the official livekit-server Helm chart.
+#   helm repo add livekit https://helm.livekit.io
+#   helm install livekit livekit/livekit-server -n livekit -f values.yaml
+#
+# Every deviation from chart defaults here is deliberate — see the ports
+# contract and constraints in the root README before changing.
+
+replicaCount: 2
+
+# hostNetwork (chart default, restated on purpose): the SFU owns the node's
+# ports => exactly ONE SFU pod per node; it scales by adding nodes. The
+# chart also disables istio/linkerd sidecars — a mesh cannot sit in front
+# of host-networked WebRTC.
+podHostNetwork: true
+
+# 5 hours: live calls must never be cut off by a rollout.
+terminationGracePeriodSeconds: 18000
+
+livekit:
+  port: 7880 # signal (WSS) + RoomService; TLS terminates at the LB/ingress
+  log_level: info
+  rtc:
+    # UDP mux: media on 11 ports (>= vCPUs) instead of 50000-60000 —
+    # a firewall rule a network team will actually approve.
+    # port_range_start/end MUST stay unset for udp_port to take effect.
+    udp_port: 7882-7892
+    tcp_port: 7881 # ICE/TCP fallback — public, must NOT sit behind an LB/TLS
+    use_external_ip: true
+    # Gotcha 3 — the flag this topology depends on: keep the node's
+    # internal ICE candidate ALONGSIDE the STUN-mapped external one, so
+    # in-cluster agent workers take the direct path while external
+    # browsers use the mapped address. Without it, agent pods must
+    # hairpin through the node public IP (often silently fails).
+    advertise_internal_ip: true
+  redis:
+    # Required for multi-node routing; without it every node is an island.
+    # Point at your managed Redis, or deploy/livekit/redis.yaml for dev.
+    address: livekit-redis:6379
+  # API keys come from an existing Secret, never from this file:
+  #   kubectl create secret generic livekit-keys -n livekit \
+  #     --from-literal=keys.yaml='<API_KEY>: <API_SECRET>'
+  # The chart mounts the secret at the key_file path.
+  key_file: keys.yaml
+  turn:
+    enabled: true
+    domain: turn.example.com # must match the TLS cert (deploy/livekit/turn-cert.yaml)
+    tls_port: 443 # the escape hatch for locked-down corporate networks
+    secretName: turn-tls
+
+storeKeysInSecret:
+  enabled: true
+  existingSecret: livekit-keys
+
+# Dedicated node pool — see deploy/k8s/ for the separate agents pool.
+nodeSelector:
+  livekit.io/pool: sfu
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+
+# Sized for an 8-core node (chart's own EKS example).
+resources:
+  requests:
+    cpu: 7000m
+    memory: 1024Mi
+  limits:
+    cpu: 7500m
+    memory: 2048Mi
+
+serviceMonitor:
+  create: true
+
+# Signal load balancer — pick per cloud and uncomment:
+loadBalancer:
+  type: disable
+  # EKS (needs aws-load-balancer-controller; cert in ACM):
+  #   type: alb
+  #   tls:
+  #     - hosts: [livekit.example.com]
+  # GKE (chart-managed ingress; 10h websocket timeout via backendConfig):
+  #   type: gke-managed-cert
+  # DigitalOcean / generic nginx-ingress + cert-manager:
+  #   type: disable   # then use your own Ingress in front of the service

@@ -1,0 +1,15 @@
+# cert-manager Certificate for TURN/TLS. Produces the `turn-tls` secret
+# referenced by values.yaml (livekit.turn.secretName).
+# Requires cert-manager and a ClusterIssuer (e.g. letsencrypt-prod).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: turn-tls
+  namespace: livekit
+spec:
+  secretName: turn-tls
+  dnsNames:
+    - turn.example.com # must match livekit.turn.domain in values.yaml
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod

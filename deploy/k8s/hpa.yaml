@@ -1,0 +1,36 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: chat-assistant
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: chat-assistant
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    # 50% — deliberately BELOW the worker's load_threshold of 0.7. The
+    # 20-point band is the runway a new pod needs (image pull, model load,
+    # register) before existing workers stop accepting jobs at 70%.
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 60
+    scaleDown:
+      # Slow by design: draining a worker takes up to 10 minutes, and
+      # long-lived calls make load spikes gentle.
+      stabilizationWindowSeconds: 900
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120

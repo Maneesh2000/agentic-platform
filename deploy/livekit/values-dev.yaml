@@ -1,0 +1,20 @@
+# Minimal single-node overlay for a dev cluster:
+#   helm install livekit livekit/livekit-server -n livekit \
+#     -f values.yaml -f values-dev.yaml
+replicaCount: 1
+terminationGracePeriodSeconds: 60
+livekit:
+  turn:
+    enabled: false
+autoscaling:
+  enabled: false
+nodeSelector: {}
+resources:
+  requests:
+    cpu: 1000m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 1024Mi
+serviceMonitor:
+  create: false
